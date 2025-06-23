@@ -2,6 +2,7 @@ const canvas = document.getElementById('tetris');
 const context = canvas.getContext('2d');
 context.scale(20, 20);
 const BOMB = 8;
+const BOMB_TIMER = 3;
 const LASER = 9;
 // Special-block spawn configuration: percent chance per piece,
 // guaranteed at least once per (100 / PROBABILITY) pieces.
@@ -70,10 +71,46 @@ function applyGravity(arena) {
 	}
 }
 
+function tickBombs() {
+    let exploded = false;
+    for (let y = 0; y < arena.length; y++) {
+        for (let x = 0; x < arena[y].length; x++) {
+            if (arena[y][x] === BOMB) {
+                bombTimers[y][x]--;
+                if (bombTimers[y][x] <= 0) {
+                    exploded = true;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (arena[y + dy] && arena[y + dy][x + dx] !== undefined) {
+                                arena[y + dy][x + dx] = 0;
+                                bombTimers[y + dy][x + dx] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (exploded) {
+        applyGravity(arena);
+    }
+}
+
 function draw() {
 	context.fillStyle = '#000';
 	context.fillRect(0, 0, canvas.width, canvas.height);
 	drawMatrix(arena, { x: 0, y: 0 });
+	context.fillStyle = '#000';
+	context.font = '0.5px sans-serif';
+	context.textAlign = 'center';
+	context.textBaseline = 'middle';
+	for (let y = 0; y < arena.length; y++) {
+		for (let x = 0; x < arena[y].length; x++) {
+			if (arena[y][x] === BOMB && bombTimers[y][x] > 0) {
+				context.fillText(bombTimers[y][x], x + 0.5, y + 0.5);
+			}
+		}
+	}
 	drawMatrix(player.matrix, player.pos);
 }
 
@@ -100,16 +137,10 @@ function merge(arena, player) {
 			const px = pos.x + x;
 			const py = pos.y + y;
 			switch (value) {
-				case BOMB:
-					exploded = true;
-					for (let dy = -1; dy <= 1; dy++) {
-						for (let dx = -1; dx <= 1; dx++) {
-							if (arena[py + dy] && arena[py + dy][px + dx] !== undefined) {
-								arena[py + dy][px + dx] = 0;
-							}
-						}
-					}
-					break;
+			case BOMB:
+				arena[py][px] = BOMB;
+				bombTimers[py][px] = BOMB_TIMER;
+				break;
 				case LASER:
 					lasered = true;
 					for (let ix = 0; ix < arena[0].length; ix++) {
@@ -183,6 +214,7 @@ function playerHardDrop() {
 }
 
 function playerReset() {
+	tickBombs();
 	const pieces = 'TJLOSZI';
 	player.matrix = createPiece(pieces[(pieces.length * Math.random()) | 0]);
 	player.pos.y = 0;
@@ -305,6 +337,7 @@ const colors = [
 	];
 
 const arena = createMatrix(10, 20);
+const bombTimers = createMatrix(arena[0].length, arena.length);
 const player = { pos: { x: 0, y: 0 }, matrix: null, score: 0 };
 
 playerReset();
