@@ -11,8 +11,13 @@ const bombProb = BOMB_PROBABILITY / 100;
 const laserProb = LASER_PROBABILITY / 100;
 const bombInterval = Math.round(100 / BOMB_PROBABILITY);
 const laserInterval = Math.round(100 / LASER_PROBABILITY);
+const EXTRUDER = 10;
+const EXTRUDER_PROBABILITY = 25; // percent chance per piece
+const extruderProb = EXTRUDER_PROBABILITY / 100;
+const extruderInterval = Math.round(100 / EXTRUDER_PROBABILITY);
 let piecesSinceBomb = 0;
 let piecesSinceLaser = 0;
+let piecesSinceExtruder = 0;
 
 function createMatrix(w, h) {
 	const matrix = [];
@@ -107,6 +112,16 @@ function merge(arena, player) {
 					for (let ax = 0; ax < arena[0].length; ++ax) {
 						arena[ay][ax] = 0;
 					}
+				} else if (value === EXTRUDER) {
+					for (let dy = -1; dy <= 1; ++dy) {
+						for (let dx = -1; dx <= 1; ++dx) {
+							const ax = x + player.pos.x + dx;
+							const ay = y + player.pos.y + dy;
+							if (arena[ay] && arena[ay][ax] !== undefined) {
+								arena[ay][ax] = Math.ceil(Math.random() * 7);
+							}
+						}
+					}
 				} else {
 					arena[y + player.pos.y][x + player.pos.x] = value;
 				}
@@ -170,9 +185,10 @@ function playerReset() {
 	player.matrix = createPiece(pieces[(pieces.length * Math.random()) | 0]);
 	player.pos.y = 0;
 	player.pos.x = ((arena[0].length / 2) | 0) - ((player.matrix[0].length / 2) | 0);
-	// Special placement: bomb or laser (never both), random chance or guaranteed interval
+	// Special placement: bomb, laser, or extruder (never multiple), random chance or guaranteed interval
 	piecesSinceBomb++;
 	piecesSinceLaser++;
+	piecesSinceExtruder++;
 	let specialType = null;
 	if (Math.random() < bombProb || piecesSinceBomb >= bombInterval) {
 		specialType = 'bomb';
@@ -180,6 +196,9 @@ function playerReset() {
 	} else if (Math.random() < laserProb || piecesSinceLaser >= laserInterval) {
 		specialType = 'laser';
 		piecesSinceLaser = 0;
+	} else if (Math.random() < extruderProb || piecesSinceExtruder >= extruderInterval) {
+		specialType = 'extruder';
+		piecesSinceExtruder = 0;
 	}
 	if (specialType) {
 		const blocks = [];
@@ -190,10 +209,14 @@ function playerReset() {
 				}
 			});
 		});
-		if (blocks.length) {
-			const { x, y } = blocks[(blocks.length * Math.random()) | 0];
-			player.matrix[y][x] = (specialType === 'bomb' ? BOMB : LASER);
-		}
+				if (blocks.length) {
+					const { x, y } = blocks[(blocks.length * Math.random()) | 0];
+					player.matrix[y][x] = (
+						specialType === 'bomb' ? BOMB
+						: specialType === 'laser' ? LASER
+						: EXTRUDER
+					);
+				}
 	}
 	if (collide(arena, player)) {
 		arena.forEach(row => row.fill(0));
@@ -276,7 +299,8 @@ const colors = [
 	'#3877FF',
 	'#FF0000', // bomb
 	'#FFFFFF', // laser
-];
+	'#00FFFF', // extruder
+	];
 
 const arena = createMatrix(10, 20);
 const player = { pos: { x: 0, y: 0 }, matrix: null, score: 0 };
