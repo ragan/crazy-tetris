@@ -92,42 +92,44 @@ function collide(arena, player) {
 function merge(arena, player) {
 	let exploded = false;
 	let lasered = false;
-	player.matrix.forEach((row, y) => {
-		row.forEach((value, x) => {
-			if (value !== 0) {
-				if (value === BOMB) {
+	const { matrix, pos } = player;
+	for (let y = 0; y < matrix.length; y++) {
+		for (let x = 0; x < matrix[y].length; x++) {
+			const value = matrix[y][x];
+			if (!value) continue;
+			const px = pos.x + x;
+			const py = pos.y + y;
+			switch (value) {
+				case BOMB:
 					exploded = true;
-					for (let dy = -1; dy <= 1; ++dy) {
-						for (let dx = -1; dx <= 1; ++dx) {
-							const ax = x + player.pos.x + dx;
-							const ay = y + player.pos.y + dy;
-							if (arena[ay] && arena[ay][ax] !== undefined) {
-								arena[ay][ax] = 0;
+					for (let dy = -1; dy <= 1; dy++) {
+						for (let dx = -1; dx <= 1; dx++) {
+							if (arena[py + dy] && arena[py + dy][px + dx] !== undefined) {
+								arena[py + dy][px + dx] = 0;
 							}
 						}
 					}
-				} else if (value === LASER) {
+					break;
+				case LASER:
 					lasered = true;
-					const ay = y + player.pos.y;
-					for (let ax = 0; ax < arena[0].length; ++ax) {
-						arena[ay][ax] = 0;
+					for (let ix = 0; ix < arena[0].length; ix++) {
+						arena[py][ix] = 0;
 					}
-				} else if (value === EXTRUDER) {
-					for (let dy = -1; dy <= 1; ++dy) {
-						for (let dx = -1; dx <= 1; ++dx) {
-							const ax = x + player.pos.x + dx;
-							const ay = y + player.pos.y + dy;
-							if (arena[ay] && arena[ay][ax] !== undefined) {
-								arena[ay][ax] = Math.ceil(Math.random() * 7);
+					break;
+				case EXTRUDER:
+					for (let dy = -1; dy <= 1; dy++) {
+						for (let dx = -1; dx <= 1; dx++) {
+							if (arena[py + dy] && arena[py + dy][px + dx] !== undefined) {
+								arena[py + dy][px + dx] = Math.ceil(Math.random() * 7);
 							}
 						}
 					}
-				} else {
-					arena[y + player.pos.y][x + player.pos.x] = value;
-				}
+					break;
+				default:
+					arena[py][px] = value;
 			}
-		});
-	});
+		}
+	}
 	if (exploded || lasered) {
 		applyGravity(arena);
 	}
