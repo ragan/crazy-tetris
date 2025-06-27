@@ -1,5 +1,9 @@
 const TetrisGame = (() => {
   const canvas = document.getElementById('tetris');
+  if (!canvas) {
+    console.error('Canvas element "#tetris" not found');
+    return;
+  }
   const context = canvas.getContext('2d');
   context.scale(20, 20);
   
@@ -8,9 +12,19 @@ const TetrisGame = (() => {
   const LASER = 9;
   const EXTRUDER = 10;
   
-  const BOMB_PROBABILITY = 25;
-  const LASER_PROBABILITY = 25;
-  const EXTRUDER_PROBABILITY = 25;
+  const BOMB_PROBABILITY = 0.25;
+  const LASER_PROBABILITY = 0.25;
+  const EXTRUDER_PROBABILITY = 0.25;
+
+  const KEY = {
+    LEFT: 37,
+    RIGHT: 39,
+    DOWN: 40,
+    SPACE: 32,
+    Q: 81,
+    W: 87,
+    UP: 38
+  };
   
   const COLORS = [
     null,
@@ -42,17 +56,18 @@ const TetrisGame = (() => {
     return Array.from({ length: h }, () => Array(w).fill(0));
   }
   
+  const PIECE_SHAPES = {
+    T: [[0, 0, 0], [1, 1, 1], [0, 1, 0]],
+    O: [[2, 2], [2, 2]],
+    L: [[0, 3, 0], [0, 3, 0], [0, 3, 3]],
+    J: [[0, 4, 0], [0, 4, 0], [4, 4, 0]],
+    I: [[0, 5, 0, 0], [0, 5, 0, 0], [0, 5, 0, 0], [0, 5, 0, 0]],
+    S: [[0, 6, 6], [6, 6, 0], [0, 0, 0]],
+    Z: [[7, 7, 0], [0, 7, 7], [0, 0, 0]]
+  };
+
   function createPiece(type) {
-    const pieces = {
-      'T': [[0, 0, 0], [1, 1, 1], [0, 1, 0]],
-      'O': [[2, 2], [2, 2]],
-      'L': [[0, 3, 0], [0, 3, 0], [0, 3, 3]],
-      'J': [[0, 4, 0], [0, 4, 0], [4, 4, 0]],
-      'I': [[0, 5, 0, 0], [0, 5, 0, 0], [0, 5, 0, 0], [0, 5, 0, 0]],
-      'S': [[0, 6, 6], [6, 6, 0], [0, 0, 0]],
-      'Z': [[7, 7, 0], [0, 7, 7], [0, 0, 0]]
-    };
-    return pieces[type];
+    return PIECE_SHAPES[type];
   }
   
   function drawMatrix(matrix, offset) {
@@ -114,7 +129,7 @@ const TetrisGame = (() => {
     context.fillRect(0, 0, canvas.width, canvas.height);
     drawMatrix(arena, { x: 0, y: 0 });
     
-    context.fillStyle = '#000';
+    context.fillStyle = '#fff';
     context.font = '0.5px sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
@@ -131,10 +146,12 @@ const TetrisGame = (() => {
   }
   
   function collide(arena, player) {
-    const [m, o] = [player.matrix, player.pos];
-    for (let y = 0; y < m.length; ++y) {
-      for (let x = 0; x < m[y].length; ++x) {
-        if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+    const [matrix, pos] = [player.matrix, player.pos];
+    for (let y = 0; y < matrix.length; y++) {
+      for (let x = 0; x < matrix[y].length; x++) {
+        if (matrix[y][x] === 0) continue;
+        const row = arena[y + pos.y];
+        if (!row || row[x + pos.x] !== 0) {
           return true;
         }
       }
@@ -143,7 +160,6 @@ const TetrisGame = (() => {
   }
   
   function merge(arena, player) {
-    let exploded = false;
     let lasered = false;
     const { matrix, pos } = player;
     
@@ -181,7 +197,7 @@ const TetrisGame = (() => {
       }
     }
     
-    if (exploded || lasered) {
+    if (lasered) {
       applyGravity(arena);
     }
   }
@@ -246,9 +262,9 @@ const TetrisGame = (() => {
     piecesSinceExtruder++;
     
     let specialType = null;
-    const bombChance = Math.random() < BOMB_PROBABILITY/100 || piecesSinceBomb >= 100/BOMB_PROBABILITY;
-    const laserChance = Math.random() < LASER_PROBABILITY/100 || piecesSinceLaser >= 100/LASER_PROBABILITY;
-    const extruderChance = Math.random() < EXTRUDER_PROBABILITY/100 || piecesSinceExtruder >= 100/EXTRUDER_PROBABILITY;
+    const bombChance = Math.random() < BOMB_PROBABILITY || piecesSinceBomb >= 1 / BOMB_PROBABILITY;
+    const laserChance = Math.random() < LASER_PROBABILITY || piecesSinceLaser >= 1 / LASER_PROBABILITY;
+    const extruderChance = Math.random() < EXTRUDER_PROBABILITY || piecesSinceExtruder >= 1 / EXTRUDER_PROBABILITY;
     
     if (bombChance) {
       specialType = 'bomb';
@@ -282,12 +298,16 @@ const TetrisGame = (() => {
     }
     
     if (collide(arena, player)) {
-      arena.forEach(row => row.fill(0));
-      player.score = 0;
-      updateScore();
+      gameOver();
     }
   }
   
+  function gameOver() {
+    arena.forEach(row => row.fill(0));
+    player.score = 0;
+    updateScore();
+  }
+
   function rotate(matrix, dir) {
     for (let y = 0; y < matrix.length; ++y) {
       for (let x = 0; x < y; ++x) {
@@ -338,18 +358,26 @@ const TetrisGame = (() => {
   }
   
   document.addEventListener('keydown', event => {
-    if (event.keyCode === 37) {
-      playerMove(-1);
-    } else if (event.keyCode === 39) {
-      playerMove(1);
-    } else if (event.keyCode === 40) {
-      playerDrop();
-    } else if (event.keyCode === 32) {
-      playerHardDrop();
-    } else if (event.keyCode === 81) {
-      playerRotate(-1);
-    } else if (event.keyCode === 87 || event.keyCode === 38) {
-      playerRotate(1);
+    switch (event.keyCode) {
+      case KEY.LEFT:
+        playerMove(-1);
+        break;
+      case KEY.RIGHT:
+        playerMove(1);
+        break;
+      case KEY.DOWN:
+        playerDrop();
+        break;
+      case KEY.SPACE:
+        playerHardDrop();
+        break;
+      case KEY.Q:
+        playerRotate(-1);
+        break;
+      case KEY.W:
+      case KEY.UP:
+        playerRotate(1);
+        break;
     }
   });
   
